@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Net;
+using System.Net.Sockets;
 
 namespace NetResponder
 {
@@ -106,28 +104,62 @@ namespace NetResponder
             Helpers.PrintPrefix();
             Console.WriteLine("Generic Options:");
 
-            //   print '    %-27s' % "Responder NIC" + color('[%s]' % settings.Config.Interface, 5, 1)
-            //   print '    %-27s' % "Responder IP" + color('[%s]' % settings.Config.Bind_To, 5, 1)
-            //   print '    %-27s' % "Challenge set" + color('[%s]' % settings.Config.NumChal, 5, 1)
+            Console.Write("    Responder NIC");
+            Print(ConsoleColor.Cyan, "[{0}]", Settings.Config.Interface);
+            Console.Write("    Responder IP");
+            Print(ConsoleColor.Cyan, "[{0}]", Settings.Config.BindTo);
+            Console.Write("    Challenge set");
+            Print(ConsoleColor.Cyan, "[{0}]", Settings.Config.NumCha1);
 
-            //   if settings.Config.Upstream_Proxy:
-            //	print '    %-27s' % "Upstream Proxy" + color('[%s]' % settings.Config.Upstream_Proxy, 5, 1)
+            if (Settings.Config.UpstreamProxy) {
+                Console.Write("    Upstream Proxy");
+                Print(ConsoleColor.Cyan, "[{0}]", Settings.Config.UpstreamProxy);
+            }
 
-            //   if len(settings.Config.RespondTo):
-            //	print '    %-27s' % "Respond To" + color(str(settings.Config.RespondTo), 5, 1)
+            if (null != Settings.Config.RespondTo) {
+                Console.Write("    Respond To");
+                Print(ConsoleColor.Cyan, "[{0}]", Settings.Config.RespondTo);
+            }
 
-            //   if len(settings.Config.RespondToName):
-            //	print '    %-27s' % "Respond To Names" + color(str(settings.Config.RespondToName), 5, 1)
+            if ((null != Settings.Config.RespondToName)
+                && (0 != Settings.Config.RespondToName.Length))
+            {
+                Console.Write("    Respond To");
+                Print(ConsoleColor.Cyan, "[{0}]", Settings.Config.RespondToName);
+            }
 
-            //   if len(settings.Config.DontRespondTo):
-            //	print '    %-27s' % "Don't Respond To" + color(str(settings.Config.DontRespondTo), 5, 1)
+            if (null != Settings.Config.DontRespondTo) {
+                Console.Write("    Respond To");
+                Print(ConsoleColor.Cyan, "[{0}]", Settings.Config.DontRespondTo);
+            }
 
-            //   if len(settings.Config.DontRespondToName):
-            //	print '    %-27s' % "Don't Respond To Names" + color(str(settings.Config.DontRespondToName), 5, 1)
-
+            if ((null != Settings.Config.DontRespondToName)
+                && (0 < Settings.Config.DontRespondToName.Length))
+            {
+                Console.Write("    Respond To");
+                Print(ConsoleColor.Cyan, "[{0}]", Settings.Config.DontRespondToName);
+            }
             Console.WriteLine();
-            throw new NotImplementedException();
             return;
+        }
+
+        internal static IPAddress FindLocalIP(string Iface, IPAddress OURIP)
+        {
+            if ("ALL" == Iface) { return IPAddress.Any; }
+            try {
+                if (null != OURIP) { return OURIP; }
+                using (Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)) {
+                    // TODO : Implement the interface binding using [1] in our Global KB
+                    // s.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName. 25, Iface + '\0')
+                    s.Connect("127.0.0.1", 9); // Discard service as per #RFC 863
+                    return ((IPEndPoint)s.LocalEndPoint).Address;
+                }
+            }
+            catch {
+                Helpers.PrintError("[!] Error: {0}: Interface not found", Iface);
+                Environment.Exit(255);
+                return null; // Unreachable
+            }
         }
 
         private static void PrintEnablement(bool enabled)
@@ -160,6 +192,15 @@ namespace NetResponder
             Console.ForegroundColor = ConsoleColor.Green;
             // Bold is missing.
             Console.Write("[+]");
+            Console.ForegroundColor = oldColor;
+            return;
+        }
+
+        private static void Print(ConsoleColor color, string format, params object[] args)
+        {
+            ConsoleColor oldColor = Console.ForegroundColor;
+            Console.ForegroundColor = color;
+            Console.WriteLine(format, args);
             Console.ForegroundColor = oldColor;
             return;
         }

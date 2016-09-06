@@ -66,7 +66,7 @@ namespace NetResponder
             //    exit(-1)
 
             Settings.Initialize();
-            Settings.Config.Populate(options);
+            Settings.Config.Populate(options, args);
             Helpers.DisplayStartupMessage();
             Settings.Config.ExpandIPRanges();
 
@@ -77,8 +77,7 @@ namespace NetResponder
                 Console.ForegroundColor = ConsoleColor.Black;
             }
 
-            try
-            {
+            try {
                 List<Thread> threads = new List<Thread>();
         
                 // Load (M)DNS, NBNS and LLMNR Poisoners

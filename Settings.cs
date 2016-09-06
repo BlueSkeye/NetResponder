@@ -22,6 +22,7 @@ namespace NetResponder
         internal FileInfo AnalyzeLogFile { get; private set; }
         internal bool AnalyzeMode { get; private set; }
         internal bool AutoIgnore { get; private set; }
+        internal string[] AutoIgnoreList { get; private set; }
         internal bool BasicAuthEnabled { get; private set; }
         internal IPAddress BindTo { get; private set; }
         internal bool CaptureMultipleCredentials { get; private set; }
@@ -29,6 +30,8 @@ namespace NetResponder
         internal string[] CommandLine { get; private set; }
         internal FileInfo DatabaseFile { get; private set; }
         internal bool DNSEnabled { get; private set; }
+        internal string[] DontRespondTo { get; private set; }
+        internal string[] DontRespondToName { get; private set; }
         internal FileInfo ExeDlName { get; private set; }
         internal FileInfo ExeFilename { get; private set; }
         internal bool FingerEnabled { get; private set; }
@@ -43,6 +46,7 @@ namespace NetResponder
         internal FileInfo HTTPNTLMv2Log { get; private set; }
         internal bool IMAPEnabled { get; private set; }
         internal FileInfo IMAPLog { get; private set; }
+        internal string Interface { get; private set; }
         internal bool KrbEnabled { get; private set; }
         internal FileInfo KerberosLog { get; private set; }
         internal FileInfo LDAPClearLog { get; private set; }
@@ -55,10 +59,13 @@ namespace NetResponder
         internal FileInfo MSSQLNTLMv2Log { get; private set; }
         internal string NBTNSDomain { get; private set; }
         internal string NumCha1 { get; private set; }
+        internal IPAddress OURIP { get; private set; }
         internal FileInfo PoisonersLogFile { get; private set; }
         internal FileInfo POP3Log { get; private set; }
         internal bool POPEnabled { get; private set; }
         internal string ResponderPATH { get; private set; }
+        internal string[] RespondTo { get; private set; }
+        internal string[] RespondToName { get; private set; }
         internal bool ServeAlways { get; private set; }
         internal bool ServeExe { get; private set; }
         internal bool ServeHtml { get; private set; }
@@ -78,6 +85,7 @@ namespace NetResponder
         internal bool WPADAuthEnabled { get; private set; }
         internal bool WPADEnabled { get; private set; }
         internal string WPADScript { get; private set; }
+        internal bool WRedirect { get; private set; }
 
         internal static void Initialize()
         {
@@ -126,7 +134,7 @@ namespace NetResponder
             //        self.DontRespondTo = expand_ranges(self.DontRespondTo)
         }
 
-        internal void Populate(object options)
+        internal void Populate(OptionSet options, string[] commandLineArguments)
         {
             // if options.Interface is None and utils.IsOsX() is False:
             //      print utils.color("Error: -I <if> mandatory option is missing", 1)
@@ -207,41 +215,42 @@ namespace NetResponder
                 Helpers.PrintError("/!\\ Warning: {0}: file not found", this.ExeFilename.FullName);
             }
 
+            // TODO 
             // # SSL Options
             // self.SSLKey  = config.get("HTTPS Server", "SSLKey")
             // self.SSLCert = config.get("HTTPS Server", "SSLCert")
 
             // # Respond to hosts
-            // self.RespondTo         = filter(None, [x.upper().strip() for x in config.get("Responder Core", "RespondTo").strip().split(",")])
-            // self.RespondToName     = filter(None, [x.upper().strip() for x in config.get("Responder Core", "RespondToName").strip().split(",")])
-            // self.DontRespondTo     = filter(None, [x.upper().strip() for x in config.get("Responder Core", "DontRespondTo").strip().split(",")])
-            // self.DontRespondToName = filter(None, [x.upper().strip() for x in config.get("Responder Core", "DontRespondToName").strip().split(",")])
+            this.RespondTo = parser.GetValue("Responder Core", "RespondTo").Trim().Split(',');
+            this.RespondToName = parser.GetValue("Responder Core", "RespondToName").Trim().Split(',');
+            this.DontRespondTo = parser.GetValue("Responder Core", "DontRespondTo").Trim().Split(',');
+            this.DontRespondToName = parser.GetValue("Responder Core", "DontRespondToName").Trim().Split(',');
 
             // # Auto Ignore List
-            // self.AutoIgnore                 = self.toBool(config.get("Responder Core", "AutoIgnoreAfterSuccess");
-            // self.CaptureMultipleCredentials = self.toBool(config.get("Responder Core", "CaptureMultipleCredentials");
-            // self.AutoIgnoreList             = []
+            this.AutoIgnore = parser.GetBooleanValue("Responder Core", "AutoIgnoreAfterSuccess");
+            this.CaptureMultipleCredentials = parser.GetBooleanValue("Responder Core", "CaptureMultipleCredentials");
+            this.AutoIgnoreList = new string[0];
 
             //# CLI options
-            // self.LM_On_Off       = options.LM_On_Off
-            // self.WPAD_On_Off     = options.WPAD_On_Off
-            // self.Wredirect       = options.Wredirect
-            // self.NBTNSDomain     = options.NBTNSDomain
-            // self.Basic           = options.Basic
-            // self.Finger_On_Off   = options.Finger
-            // self.Interface       = options.Interface
-            // self.OURIP           = options.OURIP
-            // self.Force_WPAD_Auth = options.Force_WPAD_Auth
-            // self.Upstream_Proxy  = options.Upstream_Proxy
-            // self.AnalyzeMode     = options.Analyze
-            // self.Verbose         = options.Verbose
-            // self.CommandLine     = str(sys.argv)
+            this.LMEnabled = options.LMEnabled;
+            this.WPADEnabled = options.WPADEnabled;
+            this.WRedirect = options.WRedirect;
+            this.NBTNSDomain = options.NBTNSDomain;
+            this.BasicAuthEnabled = options.BasicAuthEnabled;
+            this.FingerEnabled = options.FingerEnabled;
+            this.Interface = options.Interface;
+            this.OURIP = options.OURIP;
+            this.ForceWPADAuth = options.ForceWPADAuth;
+            this.UpstreamProxy = options.UpstreamProxy;
+            this.AnalyzeMode = options.Analyze;
+            this.Verbose = options.Verbose;
+            this.CommandLine = commandLineArguments;
 
             if (null == HtmlToInject) {
                 HtmlToInject = string.Empty;
             }
 
-            // self.Bind_To = utils.FindLocalIP(self.Interface, self.OURIP)
+            this.BindTo = Helpers.FindLocalIP(this.Interface, this.OURIP);
             // self.IP_aton         = socket.inet_aton(self.Bind_To)
             // self.Os_version      = sys.platform
 
@@ -266,11 +275,13 @@ namespace NetResponder
             Logging.Warning("Responder Config: {0}", this);
 
             //	Formatter = logging.Formatter("%(asctime)s - %(message)s")
+            
             //	PLog_Handler = Logging.FileHandler(self.PoisonersLogFile, "w")
-            //	ALog_Handler = Logging.FileHandler(self.AnalyzeLogFile, "a")
             //	PLog_Handler.setLevel(logging.INFO)
-            //	ALog_Handler.setLevel(logging.INFO)
             //	PLog_Handler.setFormatter(Formatter)
+
+            //	ALog_Handler = Logging.FileHandler(self.AnalyzeLogFile, "a")
+            //	ALog_Handler.setLevel(logging.INFO)
             //	ALog_Handler.setFormatter(Formatter)
 
             //this.PoisonersLogger = Logging.getLogger("Poisoners Log");
@@ -278,7 +289,7 @@ namespace NetResponder
 
             //	self.AnalyzeLogger = Logging.getLogger("Analyze Log")
             //	self.AnalyzeLogger.AddHandler(ALog_Handler)
-            throw new NotImplementedException();
+            return;
         }
 
         internal static Settings Config { get; private set; }
