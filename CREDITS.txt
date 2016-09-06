@@ -12,3 +12,10 @@
 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+Others
+======
+NetBIOSHelpers.DecodeName translated from original code itself crediting
+http://code.google.com/p/dpkt/
+
+

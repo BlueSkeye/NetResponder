@@ -5,6 +5,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using NetResponder.Servers;
+
 namespace NetResponder
 {
     public static class Program
@@ -79,19 +81,21 @@ namespace NetResponder
 
             try {
                 List<Thread> threads = new List<Thread>();
-        
+
                 // Load (M)DNS, NBNS and LLMNR Poisoners
                 //from poisoners.LLMNR import LLMNR
                 //from poisoners.NBTNS import NBTNS
                 //from poisoners.MDNS import MDNS
 
                 //threads.append(Thread(target = serve_LLMNR_poisoner, args = ('', 5355, LLMNR,)))
-		        //threads.append(Thread(target = serve_MDNS_poisoner, args = ('', 5353, MDNS,)))
-		        //threads.append(Thread(target = serve_NBTNS_poisoner, args = ('', 137, NBTNS,)))
+                //threads.append(Thread(target = serve_MDNS_poisoner, args = ('', 5353, MDNS,)))
+                //threads.append(Thread(target = serve_NBTNS_poisoner, args = ('', 137, NBTNS,)))
 
-		        //# Load Browser Listener
-		        //from servers.Browser import Browser
+                //# Load Browser Listener
+                //from servers.Browser import Browser
 
+                threads.Add(new Thread(
+                    new BrowsingService(138, Settings.Config.AnalyzeMode).Start));
                 //threads.append(Thread(target = serve_thread_udp_broadcast, args = ('', 138, Browser,)))
 
 		        //if settings.Config.HTTP_On_Off:
