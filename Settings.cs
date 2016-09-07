@@ -107,31 +107,41 @@ namespace NetResponder
 
         internal void ExpandIPRanges()
         {
-            throw new NotImplementedException();
-            //        def expand_ranges(lst):
-            //            ret = []
-            //			for l in lst:
-            //				tab = l.split(".")
-            //				x = {}
-            //				i = 0
-            //				for byte in tab:
-            //					if "-" not in byte:
-            //						x[i] = x[i + 1] = int(byte)
-            //					else:
-            //						b = byte.split("-")
+            this.RespondTo = ExpandRanges(this.RespondTo);
+            this.DontRespondTo = ExpandRanges(this.DontRespondTo);
+            return;
+        }
 
-            //                        x[i] = int(b[0])
-            //						x[i + 1] = int(b[1])
-            //					i += 2
-            //				for a in range(x[0], x[1]+1):
-            //					for b in range(x[2], x[3]+1):
-            //						for c in range(x[4], x[5]+1):
-            //							for d in range(x[6], x[7]+1):
-
-            //                                ret.append("%d.%d.%d.%d" % (a, b, c, d);
-            //			return ret
-            //        self.RespondTo = expand_ranges(self.RespondTo)
-            //        self.DontRespondTo = expand_ranges(self.DontRespondTo)
+        private string[] ExpandRanges(string[] lst)
+        {
+            List<string> builder = new List<string>();
+            foreach(string l in lst) {
+                if (string.IsNullOrEmpty(l)) { continue; }
+                string[] tab = l.Split('.');
+                int[] x = new int[8];
+                int i = 0;
+                foreach(string @byte in tab) {
+                    if (!@byte.Contains("-")) {
+                        x[i] = x[i + 1] = int.Parse(@byte);
+                    }
+                    else {
+                        string[] splitted = @byte.Split('-');
+                        x[i] = int.Parse(splitted[0]);
+                        x[i + 1] = int.Parse(splitted[1]);
+                    }
+                    i += 2;
+                }
+                for (int a = x[0]; a < x[1] + 1; a++) {
+                    for (int b = x[2]; b < x[3] + 1; b++) {
+                        for (int c = x[4]; c < x[5] + 1; c++) {
+                            for (int d = x[6]; d < x[7] + 1; d++) {
+                                builder.Add(string.Format("{0}.{1}.{2}.{3}", a, b, c, d));
+                            }
+                        }
+                    }
+                }
+            }
+            return builder.ToArray();
         }
 
         internal void Populate(OptionSet options, string[] commandLineArguments)
@@ -145,7 +155,7 @@ namespace NetResponder
             string configurationFilePath = Path.Combine(this.ResponderPATH, "Responder.conf");
             using (FileStream input = File.Open(configurationFilePath, FileMode.Open, FileAccess.Read)) {
                 using (StreamReader reader = new StreamReader(input)) {
-                    parser.Read(reader);
+                    parser.AcquireContent(reader);
                 }
             }
 
@@ -271,6 +281,7 @@ namespace NetResponder
 
             // # Set up logging
             // logging.basicConfig(filename=self.SessionLogFile, level=logging.INFO, format="%(asctime)s - %(message)s", datefmt="%m/%d/%Y %I:%M:%S %p")
+            Logging.LogFile = this.SessionLogFile;
             Logging.Warning("Responder Started: {0}", this.CommandLine);
             Logging.Warning("Responder Config: {0}", this);
 

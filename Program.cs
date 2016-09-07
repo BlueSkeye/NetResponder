@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Reflection;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -76,7 +76,7 @@ namespace NetResponder
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 // TODO : bold
                 Console.WriteLine("[i] Responder is in analyze mode. No NBT-NS, LLMNR, MDNS requests will be poisoned.");
-                Console.ForegroundColor = ConsoleColor.Black;
+                Console.ForegroundColor = ConsoleColor.White;
             }
 
             try {
@@ -95,7 +95,7 @@ namespace NetResponder
                 //from servers.Browser import Browser
 
                 threads.Add(new Thread(
-                    new BrowsingService(138, Settings.Config.AnalyzeMode).Start));
+                    new BrowsingService(new IPEndPoint(IPAddress.Any, 138), Settings.Config.AnalyzeMode).Start));
                 //threads.append(Thread(target = serve_thread_udp_broadcast, args = ('', 138, Browser,)))
 
 		        //if settings.Config.HTTP_On_Off:
@@ -174,7 +174,7 @@ namespace NetResponder
                 }
                 Helpers.PrintPrefix();
                 Console.WriteLine(" Listening for events...");
-                while (true) { Thread.Sleep(1000); }
+                while (true) { Thread.Sleep(100); }
             }
             catch {
                 // except KeyboardInterrupt:

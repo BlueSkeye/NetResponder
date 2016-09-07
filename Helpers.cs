@@ -9,7 +9,7 @@ namespace NetResponder
         internal static void DisplayBanner()
         {
             string banner = 
-                "                                         __\\" +
+                "                                         __\\\n" +
                 "  .----.-----.-----.-----.-----.-----.--|  |.-----.----.\n" +
                 "  |   _|  -__|__ --|  _  |  _  |     |  _  ||  -__|   _|\n" +
                 "  |__| |_____|_____|   __|_____|__|__|_____||_____|__|\n" +
@@ -18,8 +18,8 @@ namespace NetResponder
             Console.WriteLine();
             Console.Write("           ");
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("NBT-NS, LLMNR & MDNS %s", Constants.Version);
-            Console.ForegroundColor = ConsoleColor.Black;
+            Console.WriteLine("NBT-NS, LLMNR & MDNS {0}", Constants.Version);
+            Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine();
             Console.WriteLine("  Author: Laurent Gaffie (laurent.gaffie@gmail.com)");
             Console.WriteLine("  To kill this script hit CRTL-C");
@@ -203,6 +203,15 @@ namespace NetResponder
             Console.WriteLine(format, args);
             Console.ForegroundColor = oldColor;
             return;
+        }
+
+        internal static void Write(this byte[] into, int offset, bool bigEndian, int value)
+        {
+            for(int index = 0; index < sizeof(int); index++) {
+                into[index] = (bigEndian) ? (byte)((value & 0xFF000000) >> 24) : (byte)(value & 0xFF);
+                if (bigEndian) { value <<= 8; }
+                else { value >>= 8; }
+            }
         }
     }
 }

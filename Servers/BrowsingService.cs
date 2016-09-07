@@ -1,14 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
-using System.Threading.Tasks;
 
-//from packets import SMBHeader, SMBNegoData, SMBSessionData, SMBTreeConnectData, RAPNetServerEnum3Data, SMBTransRAPData
-//from SocketServer import BaseRequestHandler
-//from utils import*
-//import struct
-
+using NetResponder.Packets;
 using NetResponder.Protocols;
 
 namespace NetResponder.Servers
@@ -20,27 +15,42 @@ namespace NetResponder.Servers
         /// <param name="analyzeMode">We capture analyze mode setting at startup.
         /// This is different from original implementation and doesn't allow for
         /// "on the fly" modification of the attribute.</param>
-        internal BrowsingService(ushort port, bool analyzeMode)
-            : base(port)
+        internal BrowsingService(IPEndPoint address, bool analyzeMode)
+            : base(address)
         {
             _analyze = analyzeMode;
             return;
         }
 
-        protected override void HandleIncomingData(byte[] request)
+        private string DecodeRequestType(byte type)
         {
-            try {
-                // request, socket = self.request
-                if (_analyze) {
-                    ParseDatagramNBTNames(request /*, self.client_address[0]*/);
-                }
-                // BecomeBackup(request, self.client_address[0]);
+            switch (type) {
+                case 0x01: return "Host Announcement";
+                case 0x02: return "Request Announcement";
+                case 0x08: return "Browser Election";
+                case 0x09: return "Get Backup List Request";
+                case 0x0a: return "Get Backup List Response";
+                case 0x0b: return "Become Backup Browser";
+                case 0x0c: return "Domain/Workgroup Announcement";
+                case 0x0d: return "Master Announcement";
+                case 0x0e: return "Reset Browser State Announcement";
+                case 0x0f: return "Local Master Announcement";
+                default: return "Unknown";
             }
-            catch { }
-            throw new NotImplementedException();
         }
 
-        private void ParseDatagramNBTNames(byte[] data /*, Client*/ )
+        protected override void HandleIncomingData(IPEndPoint from, byte[] request)
+        {
+            try {
+                if (_analyze) {
+                    ParseDatagramNBTNames(from, request);
+                }
+                BecomeBackup(from, request);
+            }
+            catch { }
+        }
+
+        private void ParseDatagramNBTNames(IPEndPoint from, byte[] data)
         {
             // TODO : Check name encoding and assert the ExtractString is inline
             // with it.
@@ -48,11 +58,40 @@ namespace NetResponder.Servers
                 data.ExtractString(49, NetBIOSHelpers.NetbiosNameLength));
             string name = NetBIOSHelpers.DecodeName(
                 data.ExtractString(15, NetBIOSHelpers.NetbiosNameLength));
-            //        Role1  = NBT_NS_Role(data[45:48])
-            //        Role2  = NBT_NS_Role(data[79:82])
-            //		if Role2 == "Domain Controller" or Role2 == "Browser Election" or Role2 == "Local Master Browser" and settings.Config.AnalyzeMode:
-            //			print text('[Analyze mode: Browser] Datagram Request from IP: %s hostname: %s via the: %s to: %s. Service: %s' % (Client, Name, Role1, Domain, Role2))
-            //			print RAPThisDomain(Client, Domain)
+            string role1 = NetBIOSHelpers.GetRoleById(
+                data.ExtractData(45, NetBIOSHelpers.NetbiosRoleIdLength));
+            string role2 = NetBIOSHelpers.GetRoleById(
+                data.ExtractData(79, NetBIOSHelpers.NetbiosRoleIdLength));
+            if (_analyze) {
+                switch (role2) {
+                    case "Domain Controller":
+                    case "Browser Election":
+                    case "Local Master Browser":
+                        Console.WriteLine(
+                            "[Analyze mode: Browser] Datagram Request from IP: {0} hostname: {1} via the: {2} to: {3}. Service: {4}",
+                            from, name, role1, domain, role2);
+                        RAPThisDomain(from, domain);
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
+        private void RAPThisDomain(IPEndPoint from, string domain)
+        {
+            //    PDC = RapFinger(from, domain, new byte[] { 0x00, 0x00, 0x00, 0x80});
+            //	if PDC is not None:
+            //        print text("[LANMAN] Detected Domains: %s" % ', '.join(PDC))
+
+            //	SQL = RapFinger(Client, Domain,"\x04\x00\x00\x00")
+            //	if SQL is not None:
+            //        print text("[LANMAN] Detected SQL Servers on domain %s: %s" % (Domain, ', '.join(SQL)))
+
+            //	WKST = RapFinger(Client, Domain,"\xff\xff\xff\xff")
+            //	if WKST is not None:
+            //        print text("[LANMAN] Detected Workstations/Servers on domain %s: %s" % (Domain, ', '.join(WKST)))
+            throw new NotImplementedException();
         }
 
         //def WorkstationFingerPrint(data):
@@ -68,21 +107,6 @@ namespace NetResponder.Servers
         //		"\x06\x02"    :"Windows 8/Server 2012",
         //		"\x06\x03"    :"Windows 8.1/Server 2012R2",
         //		"\x10\x00"    :"Windows 10/Server 2016",
-        //	}.get(data, 'Unknown')
-
-
-        //def RequestType(data):
-        //	return {
-        //		"\x01": 'Host Announcement',
-        //		"\x02": 'Request Announcement',
-        //		"\x08": 'Browser Election',
-        //		"\x09": 'Get Backup List Request',
-        //		"\x0a": 'Get Backup List Response',
-        //		"\x0b": 'Become Backup Browser',
-        //		"\x0c": 'Domain/Workgroup Announcement',
-        //		"\x0d": 'Master Announcement',
-        //		"\x0e": 'Reset Browser State Announcement',
-        //		"\x0f": 'Local Master Announcement',
         //	}.get(data, 'Unknown')
 
 
@@ -116,122 +140,102 @@ namespace NetResponder.Servers
         //	return None
 
 
-        //def RAPThisDomain(Client, Domain):		
+        private void RapFinger(IPEndPoint from, string domain, byte[] data)
+        {
+            //def RapFinger(Host, Domain, Type):
+            try {
+                Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                s.Connect(from.Address, 445);
+                s.ReceiveTimeout = s.SendTimeout = 300;
+                SMBHeader Header = new SMBHeader() {
+                    Cmd = new byte[] { 0x72 },
+                    Mid = new byte[] { 0x01, 0x00 } };
+                SMBNegoData Body = new SMBNegoData();
+                Body.Calculate();
+                byte[] packet = BasePacket.Concatenate(sizeof(int), Header, Body);
+                packet.Write(0, true, (packet.Length - sizeof(int)));
+                // byte[] buffer = struct.pack(">i", len(''.join(Packet))) + Packet;
+                s.Send(packet);
+                data = new byte[1024];
+                int receivedCount = s.Receive(data);
 
-        //    PDC = RapFinger(Client, Domain,"\x00\x00\x00\x80")
-        //	if PDC is not None:
+                // # Session Setup AndX Request, Anonymous.
+                //if (data[8:10] != "\x72\x00") { return; }
+                //Header = new SMBHeader() {
+                //    Cmd = new byte[] { 0x73 },
+                //    Mid = new byte[] { 0x02, 0x00 } };
+                //Body = new SMBSessionData();
+                //Body.Calculate();
+                //packet = BasePacket.Concatenate(sizeof(int), Header, Body);
+                //packet.Write(0, true, (packet.Length - sizeof(int)));
+                //// Buffer = struct.pack(">i", len(''.join(Packet))) + Packet
+                //s.Send(packet);
+                //receivedCount = s.Receive(data);
 
-        //        print text("[LANMAN] Detected Domains: %s" % ', '.join(PDC))
+                // # Tree Connect IPC$.
+                //if (data[8:10] != "\x73\x00") { return; }
+                //Header = new SMBHeader() {
+                //    Cmd = new byte[] { 0x75 },
+                //    Flag1 = new byte[] { 0x08 },
+                //    Flag2 = new byte[] { 0x01, 0x00 },
+                //    Uid = data[32:34],
+                //    Mid = new byte[] { 0x03, 0x00 } };
+                //Body = new SMBTreeConnectData() {
+                //    Path = "\\\\" + Host + "\\IPC$"
+                //};
+                //Body.Calculate();
+                //packet = BasePacket.Concatenate(sizeof(int), Header, Body);
+                //// Buffer = struct.pack(">i", len(''.join(Packet))) + Packet
+                //packet.Write(0, true, (packet.Length - sizeof(int)));
+                //s.Send(packet);
+                //receivedCount = s.Receive(data);
 
-        //	SQL = RapFinger(Client, Domain,"\x04\x00\x00\x00")
-        //	if SQL is not None:
+                //				# Rap ServerEnum.
+                //				if data[8:10] == "\x75\x00":
+                //					Header = SMBHeader(cmd= "\x25", flag1= "\x08", flag2= "\x01\xc8", uid= data[32:34], tid= data[28:30], pid= data[30:32], mid= "\x04\x00")
+                //                    Body = SMBTransRAPData(Data= RAPNetServerEnum3Data(ServerType = Type, DetailLevel = "\x01\x00", TargetDomain = Domain))
+                //                    Body.calculate()
+                //					Packet = str(Header)+str(Body)
+                //                    Buffer = struct.pack(">i", len(''.join(Packet))) + Packet
+                //                    s.send(Buffer)
+                //                    data = s.recv(64736)
 
-        //        print text("[LANMAN] Detected SQL Servers on domain %s: %s" % (Domain, ', '.join(SQL)))
+                //					# Rap ServerEnum, Get answer and return what we're looking for.
+                //					if data[8:10] == "\x25\x00":
+                //						s.close()
+                //						return ParsePacket(data)
+            }
+            catch {
+                return;
+            }
+        }
 
-        //	WKST = RapFinger(Client, Domain,"\xff\xff\xff\xff")
-        //	if WKST is not None:
+        private void BecomeBackup(IPEndPoint from, byte[] data)
+        {
+            try {
+                int offset = 139;
+                //DataOffset    = struct.unpack('<H', data[139:141])[0]
+                int dataOffset = data.ReadUInt16(ref offset);
+                //BrowserPacket = data[82 + DataOffset:]
+                byte[] browserPacket = data.ExtractData(82 + dataOffset);
+                string reqType = DecodeRequestType(browserPacket[0]);
 
-        //        print text("[LANMAN] Detected Workstations/Servers on domain %s: %s" % (Domain, ', '.join(WKST)))
-
-
-        //def RapFinger(Host, Domain, Type):
-        //	try:
-        //		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        //		s.connect((Host,445))
-        //		s.settimeout(0.3)
-
-        //		Header = SMBHeader(cmd= "\x72", mid= "\x01\x00")
-
-        //        Body = SMBNegoData()
-
-        //        Body.calculate()
-
-        //		Packet = str(Header)+str(Body)
-
-        //        Buffer = struct.pack(">i", len(''.join(Packet))) + Packet
-
-        //        s.send(Buffer)
-
-        //        data = s.recv(1024)
-
-        //		# Session Setup AndX Request, Anonymous.
-        //		if data[8:10] == "\x72\x00":
-        //			Header = SMBHeader(cmd= "\x73", mid= "\x02\x00")
-
-        //            Body = SMBSessionData()
-
-        //            Body.calculate()
-
-        //			Packet = str(Header)+str(Body)
-
-        //            Buffer = struct.pack(">i", len(''.join(Packet))) + Packet
-
-        //            s.send(Buffer)
-
-        //            data = s.recv(1024)
-
-        //			# Tree Connect IPC$.
-        //			if data[8:10] == "\x73\x00":
-        //				Header = SMBHeader(cmd= "\x75", flag1= "\x08", flag2= "\x01\x00", uid= data[32:34], mid= "\x03\x00")
-
-        //                Body = SMBTreeConnectData(Path= "\\\\" + Host + "\\IPC$")
-
-        //                Body.calculate()
-
-        //				Packet = str(Header)+str(Body)
-
-        //                Buffer = struct.pack(">i", len(''.join(Packet))) + Packet
-
-        //                s.send(Buffer)
-
-        //                data = s.recv(1024)
-
-        //				# Rap ServerEnum.
-        //				if data[8:10] == "\x75\x00":
-        //					Header = SMBHeader(cmd= "\x25", flag1= "\x08", flag2= "\x01\xc8", uid= data[32:34], tid= data[28:30], pid= data[30:32], mid= "\x04\x00")
-
-        //                    Body = SMBTransRAPData(Data= RAPNetServerEnum3Data(ServerType = Type, DetailLevel = "\x01\x00", TargetDomain = Domain))
-
-        //                    Body.calculate()
-
-        //					Packet = str(Header)+str(Body)
-
-        //                    Buffer = struct.pack(">i", len(''.join(Packet))) + Packet
-
-        //                    s.send(Buffer)
-
-        //                    data = s.recv(64736)
-
-        //					# Rap ServerEnum, Get answer and return what we're looking for.
-        //					if data[8:10] == "\x25\x00":
-        //						s.close()
-        //						return ParsePacket(data)
-
-        //    except:
-        //		pass
-
-        //def BecomeBackup(data, Client):
-        //	try:
-        //		DataOffset    = struct.unpack('<H', data[139:141])[0]
-        //        BrowserPacket = data[82 + DataOffset:]
-        //        ReqType = RequestType(BrowserPacket[0])
-
-        //		if ReqType == "Become Backup Browser":
-        //			ServerName = BrowserPacket[1:]
-        //            Domain = Decode_Name(data[49:81])
-
-        //            Name       = Decode_Name(data[15:47])
-
-        //            Role       = NBT_NS_Role(data[45:48])
-
-        //			if settings.Config.AnalyzeMode:
-        //				print text("[Analyze mode: Browser] Datagram Request from IP: %s hostname: %s via the: %s wants to become a Local Master Browser Backup on this domain: %s."%(Client, Name, Role, Domain))
-        //				print RAPThisDomain(Client, Domain)
-
-
-        //    except:
-        //		pass
-
+                if (reqType != "Become Backup Browser") { return; }
+                string serverName = Encoding.ASCII.GetString(browserPacket.ExtractData(1));
+                string domain = NetBIOSHelpers.DecodeName(
+                    data.ExtractString(49, NetBIOSHelpers.NetbiosNameLength));
+                string name = NetBIOSHelpers.DecodeName(
+                    data.ExtractString(15, NetBIOSHelpers.NetbiosNameLength));
+                string role = NetBIOSHelpers.GetRoleById(
+                    data.ExtractData(45, NetBIOSHelpers.NetbiosRoleIdLength));
+                if (_analyze) {
+                    Console.WriteLine("[Analyze mode: Browser] Datagram Request from IP: {0} hostname: {1} via the: {2} wants to become a Local Master Browser Backup on this domain: {3}.",
+                        from, name, role, domain);
+                    //print RAPThisDomain(Client, Domain)
+                }
+            }
+            catch (Exception e) { return; }
+        }
 
         private bool _analyze;
     }
