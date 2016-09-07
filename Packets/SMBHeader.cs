@@ -53,10 +53,22 @@ namespace NetResponder.Packets
             set { SetData(_midDescriptor, value); }
         }
 
+        internal byte[] Pid
+        {
+            get { return GetData(_pidDescriptor); }
+            set { SetData(_pidDescriptor, value); }
+        }
+
         internal byte[] Protocol
         {
             get { return GetData(_protoDescriptor); }
             set { SetData(_protoDescriptor, value); }
+        }
+
+        internal byte[] Tid
+        {
+            get { return GetData(_tidDescriptor); }
+            set { SetData(_tidDescriptor, value); }
         }
 
         internal byte[] Uid

@@ -83,11 +83,9 @@ namespace NetResponder.Servers
             //    PDC = RapFinger(from, domain, new byte[] { 0x00, 0x00, 0x00, 0x80});
             //	if PDC is not None:
             //        print text("[LANMAN] Detected Domains: %s" % ', '.join(PDC))
-
             //	SQL = RapFinger(Client, Domain,"\x04\x00\x00\x00")
             //	if SQL is not None:
             //        print text("[LANMAN] Detected SQL Servers on domain %s: %s" % (Domain, ', '.join(SQL)))
-
             //	WKST = RapFinger(Client, Domain,"\xff\xff\xff\xff")
             //	if WKST is not None:
             //        print text("[LANMAN] Detected Workstations/Servers on domain %s: %s" % (Domain, ', '.join(WKST)))
@@ -109,31 +107,22 @@ namespace NetResponder.Servers
         //		"\x10\x00"    :"Windows 10/Server 2016",
         //	}.get(data, 'Unknown')
 
-
         //def PrintServerName(data, entries):
         //	if entries <= 0:
         //		return None
         //    entrieslen = 26 * entries
-
         //    chunks, chunk_size = len(data[:entrieslen]), entrieslen/entries
         //    ServerName = [data[i: i + chunk_size] for i in range(0, chunks, chunk_size)]
-
-
         //    l = []
         //	for x in ServerName:
         //		fingerprint = WorkstationFingerPrint(x[16:18])
-
         //        name = x[:16].replace('\x00', '')
-
         //        l.append('%s (%s)' % (name, fingerprint))
         //	return l
 
-
         //def ParsePacket(Payload):
-
         //    PayloadOffset = struct.unpack('<H', Payload[51:53])[0]
         //        StatusCode = Payload[PayloadOffset - 4:PayloadOffset - 2]
-
         //	if StatusCode == "\x00\x00":
         //		EntriesNum = struct.unpack('<H', Payload[PayloadOffset:PayloadOffset + 2])[0]
         //		return PrintServerName(Payload[PayloadOffset + 4:], EntriesNum)
@@ -147,12 +136,12 @@ namespace NetResponder.Servers
                 Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                 s.Connect(from.Address, 445);
                 s.ReceiveTimeout = s.SendTimeout = 300;
-                SMBHeader Header = new SMBHeader() {
+                SMBHeader header = new SMBHeader() {
                     Cmd = new byte[] { 0x72 },
                     Mid = new byte[] { 0x01, 0x00 } };
-                SMBNegoData Body = new SMBNegoData();
-                Body.Calculate();
-                byte[] packet = BasePacket.Concatenate(sizeof(int), Header, Body);
+                SMBNegoData body = new SMBNegoData();
+                body.Calculate();
+                byte[] packet = BasePacket.Concatenate(sizeof(int), header, body);
                 packet.Write(0, true, (packet.Length - sizeof(int)));
                 // byte[] buffer = struct.pack(">i", len(''.join(Packet))) + Packet;
                 s.Send(packet);
@@ -160,50 +149,61 @@ namespace NetResponder.Servers
                 int receivedCount = s.Receive(data);
 
                 // # Session Setup AndX Request, Anonymous.
-                //if (data[8:10] != "\x72\x00") { return; }
-                //Header = new SMBHeader() {
-                //    Cmd = new byte[] { 0x73 },
-                //    Mid = new byte[] { 0x02, 0x00 } };
-                //Body = new SMBSessionData();
-                //Body.Calculate();
-                //packet = BasePacket.Concatenate(sizeof(int), Header, Body);
-                //packet.Write(0, true, (packet.Length - sizeof(int)));
+                if (!data.ExtractData(8, 2).Equals(new byte[] { 0x72, 0x00 })) { return; }
+                header = new SMBHeader() {
+                    Cmd = new byte[] { 0x73 },
+                    Mid = new byte[] { 0x02, 0x00 } };
+                SMBSessionData sessionDatabody = new SMBSessionData();
+                body.Calculate();
+                packet = BasePacket.Concatenate(sizeof(int), header, sessionDatabody);
+                packet.Write(0, true, (packet.Length - sizeof(int)));
                 //// Buffer = struct.pack(">i", len(''.join(Packet))) + Packet
-                //s.Send(packet);
-                //receivedCount = s.Receive(data);
+                s.Send(packet);
+                receivedCount = s.Receive(data);
 
-                // # Tree Connect IPC$.
-                //if (data[8:10] != "\x73\x00") { return; }
-                //Header = new SMBHeader() {
-                //    Cmd = new byte[] { 0x75 },
-                //    Flag1 = new byte[] { 0x08 },
-                //    Flag2 = new byte[] { 0x01, 0x00 },
-                //    Uid = data[32:34],
-                //    Mid = new byte[] { 0x03, 0x00 } };
-                //Body = new SMBTreeConnectData() {
-                //    Path = "\\\\" + Host + "\\IPC$"
-                //};
-                //Body.Calculate();
-                //packet = BasePacket.Concatenate(sizeof(int), Header, Body);
-                //// Buffer = struct.pack(">i", len(''.join(Packet))) + Packet
-                //packet.Write(0, true, (packet.Length - sizeof(int)));
-                //s.Send(packet);
-                //receivedCount = s.Receive(data);
+                //# Tree Connect IPC$.
+                if (!data.ExtractData(8, 2).Equals(new byte[] { 0x73, 0x00 })) { return; }
+                header = new SMBHeader() {
+                    Cmd = new byte[] { 0x75 },
+                    Flag1 = new byte[] { 0x08 },
+                    Flag2 = new byte[] { 0x01, 0x00 },
+                    Uid = data.ExtractData(32, 2),
+                    Mid = new byte[] { 0x03, 0x00 } };
+                SMBTreeConnectData treeConnectBody = new SMBTreeConnectData() {
+                    Path = Encoding.ASCII.GetBytes("\\\\" + from.Address.ToString() + "\\IPC$")
+                };
+                treeConnectBody.Calculate();
+                packet = BasePacket.Concatenate(sizeof(int), header, treeConnectBody);
+                packet.Write(0, true, (packet.Length - sizeof(int)));
+                s.Send(packet);
+                receivedCount = s.Receive(data);
 
-                //				# Rap ServerEnum.
-                //				if data[8:10] == "\x75\x00":
-                //					Header = SMBHeader(cmd= "\x25", flag1= "\x08", flag2= "\x01\xc8", uid= data[32:34], tid= data[28:30], pid= data[30:32], mid= "\x04\x00")
-                //                    Body = SMBTransRAPData(Data= RAPNetServerEnum3Data(ServerType = Type, DetailLevel = "\x01\x00", TargetDomain = Domain))
-                //                    Body.calculate()
-                //					Packet = str(Header)+str(Body)
-                //                    Buffer = struct.pack(">i", len(''.join(Packet))) + Packet
-                //                    s.send(Buffer)
-                //                    data = s.recv(64736)
+                // # Rap ServerEnum.
+                if (!data.ExtractData(8, 2).Equals(new byte[] { 0x75, 0x00 })) { return; }
+                header = new SMBHeader() {
+                    Cmd = new byte[] { 0x25 },
+                    Flag1 = new byte[] { 0x08 },
+                    Flag2 = new byte[] { 0x01, 0xc8 },
+                    Uid = data.ExtractData(32, 2),
+                    Tid = data.ExtractData(28, 2),
+                    Pid = data.ExtractData(30, 2),
+                    Mid = new byte[] { 0x04, 0x00 } };
+                SMBTransRAPData transRAPBody = new SMBTransRAPData() {
+                    Data = RAPNetServerEnum3Data(ServerType = Type, DetailLevel = "\x01\x00", TargetDomain = Domain)
+                };
+                transRAPBody.Calculate();
+                packet = BasePacket.Concatenate(sizeof(int), header, transRAPBody);
+                packet.Write(0, true, (packet.Length - sizeof(int)));
+                s.Send(packet);
+                data = new byte[64736];
+                receivedCount = s.Receive(data);
 
-                //					# Rap ServerEnum, Get answer and return what we're looking for.
-                //					if data[8:10] == "\x25\x00":
-                //						s.close()
-                //						return ParsePacket(data)
+                // # Rap ServerEnum, Get answer and return what we're looking for.
+                if (data.ExtractData(8, 2).Equals(new byte[] { 0x25, 0x00 })) {
+                    s.Close();
+                }
+                throw new NotImplementedException();
+                // return ParsePacket(data)
             }
             catch {
                 return;
@@ -215,7 +215,7 @@ namespace NetResponder.Servers
             try {
                 int offset = 139;
                 //DataOffset    = struct.unpack('<H', data[139:141])[0]
-                int dataOffset = data.ReadUInt16(ref offset);
+                int dataOffset = data.ToUInt16(ref offset);
                 //BrowserPacket = data[82 + DataOffset:]
                 byte[] browserPacket = data.ExtractData(82 + dataOffset);
                 string reqType = DecodeRequestType(browserPacket[0]);

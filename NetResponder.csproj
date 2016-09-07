@@ -54,6 +54,8 @@
     <Compile Include="Packets\BasePacket.cs" />
     <Compile Include="Packets\SMBHeader.cs" />
     <Compile Include="Packets\SMBNegoData.cs" />
+    <Compile Include="Packets\SMBSessionData.cs" />
+    <Compile Include="Packets\SMBTreeConnectData.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Protocols\NetBIOSHelpers.cs" />
