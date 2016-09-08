@@ -5,7 +5,17 @@ namespace NetResponder
 {
     internal static class Extension
     {
-        internal static bool Equals(this byte[] x, byte[] y)
+        internal static string Combine(this string[] from, string separator)
+        {
+            StringBuilder builder = new StringBuilder();
+            foreach(string candidate in from) {
+                if (0 < builder.Length) { builder.Append(separator); }
+                builder.Append(candidate);
+            }
+            return builder.ToString();
+        }
+
+        internal static bool ContentEquals(this byte[] x, byte[] y)
         {
             if (null == y) { return false; }
             if (x.Length != y.Length) { return false; }
@@ -17,7 +27,12 @@ namespace NetResponder
 
         internal static byte[] ExtractData(this byte[] from, int startIndex)
         {
-            return from.ExtractData(startIndex, from.Length - startIndex);
+            try { return from.ExtractData(startIndex, from.Length - startIndex); }
+            catch (Exception e) {
+                // TODO : Remove try/catch once bug's fixed.
+                int i = e.Message.Length;
+                throw;
+            }
         }
 
         internal static byte[] ExtractData(this byte[] from, int startIndex, int length)
@@ -33,28 +48,45 @@ namespace NetResponder
             return Encoding.ASCII.GetString(ExtractData(from, startIndex, length));
         }
 
-        internal static byte[] FromUInt16(this ushort data)
+        internal static byte[] FromUInt16(this ushort data, Endianness endianness)
         {
-            // This operation is intended to be performed on a program variable
-            // or property. The result will be big endian encoded.
-            // TODO : Be more explicit as of BE/LE
             byte[] result = new byte[sizeof(ushort)];
-            for(int index = sizeof(ushort); index >= 0;) {
-                result[--index] = (byte)(data % 256);
-                data /= 256;
+            switch (endianness) {
+                case Endianness.BigEndian:
+                    for(int index = sizeof(ushort); index >= 0;) {
+                        result[--index] = (byte)(data % 256);
+                        data /= 256;
+                    }
+                    break;
+                case Endianness.LittleEndian:
+                    for(int index = 0; index < sizeof(ushort); index++) {
+                        result[index] = (byte)(data % 256);
+                        data /= 256;
+                    }
+                    break;
+                default:
+                    throw new ApplicationException();
             }
             return result;
         }
 
-        internal static ushort ToUInt16(this byte[] data, ref int offset)
+        internal static ushort ToUInt16(this byte[] data, Endianness endianness, int offset)
         {
-            // This operation is intended to be performed on incoming packets.
-            // Numbers are big endian encoded.
-            // TODO : Be more explicit as of BE/LE
             ushort result = 0;
-            for (int index = 0; index < sizeof(ushort); index++) {
-                result <<= 8;
-                result += data[offset++];
+            switch (endianness) {
+                case Endianness.BigEndian:
+                    for (int index = 0; index < sizeof(ushort); index++) {
+                        result <<= 8;
+                        result += data[offset++];
+                    }
+                    break;
+                case Endianness.LittleEndian:
+                    for (int index = 0; index < sizeof(ushort); index++) {
+                        result += (ushort)(data[offset++] << (8 * index));
+                    }
+                    break;
+                default:
+                    throw new ApplicationException();
             }
             return result;
         }

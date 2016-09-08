@@ -46,15 +46,19 @@
   <ItemGroup>
     <Compile Include="ConfigurationParser.cs" />
     <Compile Include="Constants.cs" />
+    <Compile Include="Endianness.cs" />
     <Compile Include="Extension.cs" />
     <Compile Include="Helpers.cs" />
     <Compile Include="Logging.cs" />
     <Compile Include="OptionSet.cs" />
     <Compile Include="OptionParser.cs" />
     <Compile Include="Packets\BasePacket.cs" />
+    <Compile Include="Packets\RAPNetServerEnum3Data.cs" />
+    <Compile Include="Packets\SMBCommands.cs" />
     <Compile Include="Packets\SMBHeader.cs" />
     <Compile Include="Packets\SMBNegoData.cs" />
     <Compile Include="Packets\SMBSessionData.cs" />
+    <Compile Include="Packets\SMBTransRAPData.cs" />
     <Compile Include="Packets\SMBTreeConnectData.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

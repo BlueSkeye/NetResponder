@@ -23,6 +23,15 @@ namespace NetResponder.Packets
             //}
         }
 
+        internal byte[] RawData
+        {
+            get {
+                byte[] result = new byte[_data.Length];
+                Buffer.BlockCopy(_data, 0, result, 0, result.Length);
+                return result;
+            }
+        }
+
         protected static void Append(List<byte> builder, out ItemDescriptor descriptor, byte[] data)
         {
             descriptor = new ItemDescriptor(builder.Count, data.Length);

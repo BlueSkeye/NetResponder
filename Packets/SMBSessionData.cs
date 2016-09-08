@@ -50,8 +50,8 @@ namespace NetResponder.Packets
             bccData.AddRange(NativeOsTerminator);
             bccData.AddRange(NativeLanman);
             bccData.AddRange(NativeLanmanTerminator);;
-            Bcc = ((ushort)bccData.Count).FromUInt16();
-            PasswordLen = ((ushort)AccountPassword.Length).FromUInt16();
+            Bcc = ((ushort)bccData.Count).FromUInt16(Endianness.LittleEndian);
+            PasswordLen = ((ushort)AccountPassword.Length).FromUInt16(Endianness.LittleEndian);
             return;
         }
 

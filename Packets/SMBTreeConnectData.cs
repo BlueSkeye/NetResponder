@@ -34,14 +34,14 @@ namespace NetResponder.Packets
 
         internal void Calculate()
         {
-            PasswdLen = ((ushort)Passwd.Length).FromUInt16();
+            PasswdLen = ((ushort)Passwd.Length).FromUInt16(Endianness.LittleEndian);
             List<byte> builder = new List<byte>();
             builder.AddRange(Passwd);
             builder.AddRange(Path);
             builder.AddRange(PathTerminator);
             builder.AddRange(Service);
             builder.AddRange(Terminator);
-            Bcc = ((ushort)builder.Count).FromUInt16();
+            Bcc = ((ushort)builder.Count).FromUInt16(Endianness.LittleEndian);
             return;
         }
 

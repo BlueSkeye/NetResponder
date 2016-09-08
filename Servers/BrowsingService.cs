@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -78,60 +79,38 @@ namespace NetResponder.Servers
             }
         }
 
-        private void RAPThisDomain(IPEndPoint from, string domain)
+        private string[] ParsePacket(byte[] payload)
         {
-            //    PDC = RapFinger(from, domain, new byte[] { 0x00, 0x00, 0x00, 0x80});
-            //	if PDC is not None:
-            //        print text("[LANMAN] Detected Domains: %s" % ', '.join(PDC))
-            //	SQL = RapFinger(Client, Domain,"\x04\x00\x00\x00")
-            //	if SQL is not None:
-            //        print text("[LANMAN] Detected SQL Servers on domain %s: %s" % (Domain, ', '.join(SQL)))
-            //	WKST = RapFinger(Client, Domain,"\xff\xff\xff\xff")
-            //	if WKST is not None:
-            //        print text("[LANMAN] Detected Workstations/Servers on domain %s: %s" % (Domain, ', '.join(WKST)))
-            throw new NotImplementedException();
+            ushort payloadOffset = payload.ToUInt16(Endianness.LittleEndian, 51);
+            ushort statusCode = payload.ToUInt16(Endianness.LittleEndian, (payloadOffset - 4));
+            if (0 == statusCode) {
+                ushort entriesCount = payload.ToUInt16(Endianness.LittleEndian, payloadOffset);
+                return PrintServerName(payload.ExtractData(payloadOffset + 4), entriesCount);
+            }
+            return null;
         }
 
-        //def WorkstationFingerPrint(data):
-        //	return {
-        //		"\x04\x00"    :"Windows 95",
-        //		"\x04\x10"    :"Windows 98",
-        //		"\x04\x90"    :"Windows ME",
-        //		"\x05\x00"    :"Windows 2000",
-        //		"\x05\x01"    :"Windows XP",
-        //		"\x05\x02"    :"Windows XP(64-Bit)/Windows 2003",
-        //		"\x06\x00"    :"Windows Vista/Server 2008",
-        //		"\x06\x01"    :"Windows 7/Server 2008R2",
-        //		"\x06\x02"    :"Windows 8/Server 2012",
-        //		"\x06\x03"    :"Windows 8.1/Server 2012R2",
-        //		"\x10\x00"    :"Windows 10/Server 2016",
-        //	}.get(data, 'Unknown')
-
-        //def PrintServerName(data, entries):
-        //	if entries <= 0:
-        //		return None
-        //    entrieslen = 26 * entries
-        //    chunks, chunk_size = len(data[:entrieslen]), entrieslen/entries
-        //    ServerName = [data[i: i + chunk_size] for i in range(0, chunks, chunk_size)]
-        //    l = []
-        //	for x in ServerName:
-        //		fingerprint = WorkstationFingerPrint(x[16:18])
-        //        name = x[:16].replace('\x00', '')
-        //        l.append('%s (%s)' % (name, fingerprint))
-        //	return l
-
-        //def ParsePacket(Payload):
-        //    PayloadOffset = struct.unpack('<H', Payload[51:53])[0]
-        //        StatusCode = Payload[PayloadOffset - 4:PayloadOffset - 2]
-        //	if StatusCode == "\x00\x00":
-        //		EntriesNum = struct.unpack('<H', Payload[PayloadOffset:PayloadOffset + 2])[0]
-        //		return PrintServerName(Payload[PayloadOffset + 4:], EntriesNum)
-        //	return None
-
-
-        private void RapFinger(IPEndPoint from, string domain, byte[] data)
+        private string[] PrintServerName(byte[] data, int entries)
         {
-            //def RapFinger(Host, Domain, Type):
+            if (0 >= entries) { return null; }
+            int chunk_size = 26;
+            int entrieslen = chunk_size * entries;
+            //    chunks= len(data[:entrieslen])
+            List<byte[]> ServerName = new List<byte[]>();
+            List<string> l = new List<string>();
+            for (int index = 0; index < entries; index++) {
+                byte[] thisChunk = data.ExtractData((index * chunk_size), chunk_size);
+                string fingerprint = WorkstationFingerPrint(
+                    thisChunk.ToUInt16(Endianness.LittleEndian, 16));
+                string name = Encoding.ASCII.GetString(thisChunk.ExtractData(0, 16))
+                    .Replace("\0", "");
+                l.Add(string.Format("{0} ({1})", name, fingerprint));
+            }
+            return l.ToArray();
+        }
+
+        private string[] RapFinger(IPEndPoint from, string domain, byte[] type)
+        {
             try {
                 Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                 s.Connect(from.Address, 445);
@@ -144,12 +123,12 @@ namespace NetResponder.Servers
                 byte[] packet = BasePacket.Concatenate(sizeof(int), header, body);
                 packet.Write(0, true, (packet.Length - sizeof(int)));
                 // byte[] buffer = struct.pack(">i", len(''.join(Packet))) + Packet;
-                s.Send(packet);
-                data = new byte[1024];
+                int sentLength = s.Send(packet);
+                byte[] data = new byte[1024];
                 int receivedCount = s.Receive(data);
 
                 // # Session Setup AndX Request, Anonymous.
-                if (!data.ExtractData(8, 2).Equals(new byte[] { 0x72, 0x00 })) { return; }
+                if (!data.ExtractData(8, 2).ContentEquals(new byte[] { 0x72, 0x00 })) { return null; }
                 header = new SMBHeader() {
                     Cmd = new byte[] { 0x73 },
                     Mid = new byte[] { 0x02, 0x00 } };
@@ -158,11 +137,11 @@ namespace NetResponder.Servers
                 packet = BasePacket.Concatenate(sizeof(int), header, sessionDatabody);
                 packet.Write(0, true, (packet.Length - sizeof(int)));
                 //// Buffer = struct.pack(">i", len(''.join(Packet))) + Packet
-                s.Send(packet);
+                sentLength = s.Send(packet);
                 receivedCount = s.Receive(data);
 
                 //# Tree Connect IPC$.
-                if (!data.ExtractData(8, 2).Equals(new byte[] { 0x73, 0x00 })) { return; }
+                if (!data.ExtractData(8, 2).ContentEquals(new byte[] { 0x73, 0x00 })) { return null; }
                 header = new SMBHeader() {
                     Cmd = new byte[] { 0x75 },
                     Flag1 = new byte[] { 0x08 },
@@ -175,11 +154,11 @@ namespace NetResponder.Servers
                 treeConnectBody.Calculate();
                 packet = BasePacket.Concatenate(sizeof(int), header, treeConnectBody);
                 packet.Write(0, true, (packet.Length - sizeof(int)));
-                s.Send(packet);
+                sentLength = s.Send(packet);
                 receivedCount = s.Receive(data);
 
                 // # Rap ServerEnum.
-                if (!data.ExtractData(8, 2).Equals(new byte[] { 0x75, 0x00 })) { return; }
+                if (!data.ExtractData(8, 2).ContentEquals(new byte[] { 0x75, 0x00 })) { return null; }
                 header = new SMBHeader() {
                     Cmd = new byte[] { 0x25 },
                     Flag1 = new byte[] { 0x08 },
@@ -189,34 +168,75 @@ namespace NetResponder.Servers
                     Pid = data.ExtractData(30, 2),
                     Mid = new byte[] { 0x04, 0x00 } };
                 SMBTransRAPData transRAPBody = new SMBTransRAPData() {
-                    Data = RAPNetServerEnum3Data(ServerType = Type, DetailLevel = "\x01\x00", TargetDomain = Domain)
-                };
+                    Data = new RAPNetServerEnum3Data() {
+                        ServerType = type,
+                        DetailLevel = new byte[] { 0x01, 0x00 },
+                        TargetDomain = Encoding.ASCII.GetBytes(domain)
+                    }.RawData };
                 transRAPBody.Calculate();
                 packet = BasePacket.Concatenate(sizeof(int), header, transRAPBody);
                 packet.Write(0, true, (packet.Length - sizeof(int)));
-                s.Send(packet);
+                sentLength = s.Send(packet);
                 data = new byte[64736];
                 receivedCount = s.Receive(data);
 
                 // # Rap ServerEnum, Get answer and return what we're looking for.
-                if (data.ExtractData(8, 2).Equals(new byte[] { 0x25, 0x00 })) {
+                if (data.ExtractData(8, 2).ContentEquals(new byte[] { 0x25, 0x00 })) {
                     s.Close();
                 }
-                throw new NotImplementedException();
-                // return ParsePacket(data)
+                return ParsePacket(data);
             }
             catch {
-                return;
+                return null;
+            }
+        }
+
+        /// <summary>Use Remote Administration Protocol (RAP) for domain fingerprinting.
+        /// See : https://msdn.microsoft.com/en-us/library/cc240190.aspx
+        /// </summary>
+        /// <param name="from"></param>
+        /// <param name="domain"></param>
+        private void RAPThisDomain(IPEndPoint from, string domain)
+        {
+            string[] PDC = RapFinger(from, domain, new byte[] { 0x00, 0x00, 0x00, 0x80});
+            if (null != PDC) {
+                Console.WriteLine("[LANMAN] Detected Domains: {0}", PDC.Combine(", "));
+            }
+            string[] SQL = RapFinger(from, domain, new byte[] { 0x04, 0x00, 0x00, 0x00 });
+            if (null != SQL) {
+                Console.WriteLine("[LANMAN] Detected SQL Servers on domain {0} : {1}",
+                    domain, SQL.Combine(", "));
+            }
+            string[] WKST = RapFinger(from, domain, new byte[] { 0xff, 0xff, 0xff, 0xff });
+            if (null != WKST) {
+                Console.WriteLine("[LANMAN] Detected Workstations/Servers on domain {0} : {1}",
+                    domain, WKST.Combine(", "));
+            }
+            return;
+        }
+
+        private string WorkstationFingerPrint(ushort id)
+        {
+            switch (id) {
+                case 0x0004: return "Windows 95";
+                case 0x0A04: return "Windows 98"; // *
+                case 0x5A04: return "Windows ME"; // *
+                case 0x0005: return "Windows 2000";
+                case 0x0105: return "Windows XP";
+                case 0x0205: return "Windows XP(64-Bit)/Windows 2003";
+                case 0x0006: return "Windows Vista/Server 2008";
+                case 0x0106: return "Windows 7/Server 2008R2";
+                case 0x0206: return "Windows 8/Server 2012";
+                case 0x0306: return "Windows 8.1/Server 2012R2";
+                case 0x000A: return "Windows 10/Server 2016"; // *
+                default: return "Unknown";
             }
         }
 
         private void BecomeBackup(IPEndPoint from, byte[] data)
         {
             try {
-                int offset = 139;
-                //DataOffset    = struct.unpack('<H', data[139:141])[0]
-                int dataOffset = data.ToUInt16(ref offset);
-                //BrowserPacket = data[82 + DataOffset:]
+                int dataOffset = data.ToUInt16(Endianness.LittleEndian, 139);
                 byte[] browserPacket = data.ExtractData(82 + dataOffset);
                 string reqType = DecodeRequestType(browserPacket[0]);
 
@@ -231,7 +251,7 @@ namespace NetResponder.Servers
                 if (_analyze) {
                     Console.WriteLine("[Analyze mode: Browser] Datagram Request from IP: {0} hostname: {1} via the: {2} wants to become a Local Master Browser Backup on this domain: {3}.",
                         from, name, role, domain);
-                    //print RAPThisDomain(Client, Domain)
+                    RAPThisDomain(from, domain);
                 }
             }
             catch (Exception e) { return; }

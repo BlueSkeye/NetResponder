@@ -23,15 +23,47 @@ namespace NetResponder.Packets
             return;
         }
 
-        internal void Calculate()
+        internal byte[] Bcc
         {
-            throw new NotImplementedException();
-            //CalculateBCC = str(self.fields["separator1"]) + str(self.fields["dialect1"])
-            //CalculateBCC += str(self.fields["separator2"]) + str(self.fields["dialect2"])
-            //self.fields["bcc"] = struct.pack("<h", len(CalculateBCC))
+            get { return GetData(_bccDescriptor); }
+            set { SetData(_bccDescriptor, value); }
         }
 
-        private byte[] _data;
+        internal byte[] Dialect1
+        {
+            get { return GetData(_dialect1Descriptor); }
+            set { SetData(_dialect1Descriptor, value); }
+        }
+
+        internal byte[] Dialect2
+        {
+            get { return GetData(_dialect2Descriptor); }
+            set { SetData(_dialect2Descriptor, value); }
+        }
+
+        internal byte[] Separator1
+        {
+            get { return GetData(_separator1Descriptor); }
+            set { SetData(_separator1Descriptor, value); }
+        }
+
+        internal byte[] Separator2
+        {
+            get { return GetData(_separator2Descriptor); }
+            set { SetData(_separator2Descriptor, value); }
+        }
+
+        internal void Calculate()
+        {
+            List<byte> bccData = new List<byte>();
+            bccData.AddRange(Separator1);
+            bccData.AddRange(Dialect1);
+            bccData.AddRange(Separator2);
+            bccData.AddRange(Dialect2);
+            Bcc = ((ushort)bccData.Count).FromUInt16(Endianness.LittleEndian);
+            return;
+        }
+
         private static readonly byte[] _defaultPacket;
         private static ItemDescriptor _wordcountDescriptor;
         private static ItemDescriptor _bccDescriptor;

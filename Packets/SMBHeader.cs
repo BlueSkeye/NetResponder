@@ -3,13 +3,16 @@ using System.Collections.Generic;
 
 namespace NetResponder.Packets
 {
+    /// <summary>Defined in MS-CIFS 2.2.3.1. See
+    /// https://msdn.microsoft.com/en-us/library/ee442092.aspx
+    /// </summary>
     internal class SMBHeader : BasePacket
     {
         static SMBHeader()
         {
             List<byte> builder = new List<byte>();
-            Append(builder, out _protoDescriptor, new byte[] { 0xff, 0x53, 0x4d, 0x42 });
-            Append(builder, out _cmdDescriptor, new byte[] { 0x72 });
+            Append(builder, out _protoDescriptor, SMBSignature);
+            Append(builder, out _cmdDescriptor, new byte[] { (byte)SMBCommands.Negociate });
             Append(builder, out _errorcodeDescriptor, new byte[] { 0x00, 0x00, 0x00, 0x00 });
             Append(builder, out _flag1Descriptor, new byte[] { 0x00 });
             Append(builder, out _flag2Descriptor, new byte[] { 0x00, 0x00 });
@@ -77,6 +80,7 @@ namespace NetResponder.Packets
             set { SetData(_uidDescriptor, value); }
         }
 
+        private static readonly byte[] SMBSignature = new byte[] { 0xff, 0x53, 0x4d, 0x42 };
         private static readonly byte[] _defaultPacket;
         private static ItemDescriptor _protoDescriptor;
         private static ItemDescriptor _cmdDescriptor;
