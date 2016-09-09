@@ -53,6 +53,19 @@ namespace NetResponder.Packets
             set { SetData(_separator2Descriptor, value); }
         }
 
+        internal byte[] Build(SMBHeader header)
+        {
+            byte[] result = base.Build(sizeof(int), header, this);
+            result.Write(0, true, (result.Length - sizeof(int)));
+            return result;
+        }
+
+        internal byte[] CalculateAndBuild(SMBHeader header)
+        {
+            Calculate();
+            return Build(header);
+        }
+
         internal void Calculate()
         {
             List<byte> bccData = new List<byte>();

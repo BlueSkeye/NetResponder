@@ -4,7 +4,7 @@ using System.Text;
 
 namespace NetResponder.Packets
 {
-    internal class SMBSessionData : BasePacket
+    internal class SMBSessionData : SMBBasePacket
     {
         static SMBSessionData()
         {
@@ -35,23 +35,6 @@ namespace NetResponder.Packets
         internal SMBSessionData()
             : base(_defaultPacket)
         {
-            return;
-        }
-
-        internal void Calculate()
-        {
-            List<byte> bccData = new List<byte>();
-            bccData.AddRange(AccountPassword);
-            bccData.AddRange(AccountName);
-            bccData.AddRange(AccountNameTerminator);
-            bccData.AddRange(PrimaryDomain);
-            bccData.AddRange(PrimaryDomainTerminator);
-            bccData.AddRange(NativeOs);
-            bccData.AddRange(NativeOsTerminator);
-            bccData.AddRange(NativeLanman);
-            bccData.AddRange(NativeLanmanTerminator);;
-            Bcc = ((ushort)bccData.Count).FromUInt16(Endianness.LittleEndian);
-            PasswordLen = ((ushort)AccountPassword.Length).FromUInt16(Endianness.LittleEndian);
             return;
         }
 
@@ -119,6 +102,23 @@ namespace NetResponder.Packets
         {
             get { return GetData(_primaryDomainTerminatorDescriptor); }
             set { SetData(_primaryDomainTerminatorDescriptor, value); }
+        }
+
+        internal override void Calculate()
+        {
+            List<byte> bccData = new List<byte>();
+            bccData.AddRange(AccountPassword);
+            bccData.AddRange(AccountName);
+            bccData.AddRange(AccountNameTerminator);
+            bccData.AddRange(PrimaryDomain);
+            bccData.AddRange(PrimaryDomainTerminator);
+            bccData.AddRange(NativeOs);
+            bccData.AddRange(NativeOsTerminator);
+            bccData.AddRange(NativeLanman);
+            bccData.AddRange(NativeLanmanTerminator); ;
+            Bcc = ((ushort)bccData.Count).FromUInt16(Endianness.LittleEndian);
+            PasswordLen = ((ushort)AccountPassword.Length).FromUInt16(Endianness.LittleEndian);
+            return;
         }
 
         private static readonly byte[] _defaultPacket;

@@ -38,6 +38,16 @@ namespace NetResponder.Packets
             builder.AddRange(data);
         }
 
+        internal byte[] Build(int reservedLeadingSpace, BasePacket header,
+            params BasePacket[] others)
+        {
+            List<byte> result = new List<byte>();
+            while(0 < reservedLeadingSpace--) { result.Add(0x00); }
+            result.AddRange(header._data);
+            foreach(BasePacket other in others) { result.AddRange(other._data); }
+            return result.ToArray();
+        }
+
         protected byte[] GetData(ItemDescriptor descriptor)
         {
             byte[] result = new byte[descriptor.Length];
@@ -47,21 +57,10 @@ namespace NetResponder.Packets
 
         protected void SetData(ItemDescriptor descriptor, byte[] value)
         {
-            if (descriptor.Length != value.Length)
-            {
+            if (descriptor.Length != value.Length) {
                 throw new ApplicationException();
             }
             Buffer.BlockCopy(value, 0, _data, descriptor.Offset, descriptor.Length);
-        }
-
-        internal static byte[] Concatenate(int reservedLeadingSpace, BasePacket header,
-            params BasePacket[] others)
-        {
-            List<byte> result = new List<byte>();
-            while(0 < reservedLeadingSpace--) { result.Add(0x00); }
-            result.AddRange(header._data);
-            foreach(BasePacket other in others) { result.AddRange(other._data); }
-            return result.ToArray();
         }
 
         public override string ToString()

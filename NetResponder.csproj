@@ -53,7 +53,10 @@
     <Compile Include="OptionSet.cs" />
     <Compile Include="OptionParser.cs" />
     <Compile Include="Packets\BasePacket.cs" />
+    <Compile Include="Packets\NetBIOSHeaderType.cs" />
+    <Compile Include="Packets\NetBIOSUdpHeader.cs" />
     <Compile Include="Packets\RAPNetServerEnum3Data.cs" />
+    <Compile Include="Packets\SMBBasePacket.cs" />
     <Compile Include="Packets\SMBCommands.cs" />
     <Compile Include="Packets\SMBHeader.cs" />
     <Compile Include="Packets\SMBNegoData.cs" />

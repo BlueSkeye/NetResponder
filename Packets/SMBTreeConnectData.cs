@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace NetResponder.Packets
 {
-    internal class SMBTreeConnectData : BasePacket
+    internal class SMBTreeConnectData : SMBBasePacket
     {
         static SMBTreeConnectData()
         {
@@ -32,7 +32,7 @@ namespace NetResponder.Packets
             return;
         }
 
-        internal void Calculate()
+        internal override void Calculate()
         {
             PasswdLen = ((ushort)Passwd.Length).FromUInt16(Endianness.LittleEndian);
             List<byte> builder = new List<byte>();

@@ -32,6 +32,13 @@ namespace NetResponder.Packets
             return;
         }
 
+        private SMBHeader(byte[] responseData, bool response)
+            : base(responseData)
+        {
+            _responseHeader = response;
+            return;
+        }
+
         internal byte[] Cmd
         {
             get { return GetData(_cmdDescriptor); }
@@ -80,7 +87,33 @@ namespace NetResponder.Packets
             set { SetData(_uidDescriptor, value); }
         }
 
+        internal static SMBHeader FromRequest(byte[] data)
+        {
+            // Don't forget to skip length prefix.
+            byte[] headerData = data.ExtractData(sizeof(int), _defaultPacket.Length);
+            return new SMBHeader(headerData, false);
+        }
+
+        internal static SMBHeader FromResponse(byte[] data)
+        {
+            // Don't forget to skip length prefix.
+            byte[] headerData = data.ExtractData(sizeof(int), _defaultPacket.Length);
+            return new SMBHeader(headerData, true);
+        }
+
+        internal static bool IsExpectedResponse(SMBCommands command, byte[] data)
+        {
+            SMBHeader candidate = new SMBHeader(data.ExtractData(sizeof(int)), true);
+            if ((byte)command != candidate.Cmd[0]) { return false; }
+            byte[] errorCodeData = candidate.GetData(_errorcodeDescriptor);
+            for (int index = 0; index < errorCodeData.Length; index++) {
+                if (0 != errorCodeData[index]) { return false; }
+            }
+            return true;
+        }
+
         private static readonly byte[] SMBSignature = new byte[] { 0xff, 0x53, 0x4d, 0x42 };
+        private bool _responseHeader;
         private static readonly byte[] _defaultPacket;
         private static ItemDescriptor _protoDescriptor;
         private static ItemDescriptor _cmdDescriptor;

@@ -4,7 +4,7 @@ using System.Text;
 
 namespace NetResponder.Packets
 {
-    internal class SMBTransRAPData : BasePacket
+    internal class SMBTransRAPData : SMBBasePacket
     {
         static SMBTransRAPData()
         {
@@ -45,7 +45,7 @@ namespace NetResponder.Packets
             set { SetData(_dataDescriptor, value); }
         }
 
-        internal void Calculate()
+        internal override void Calculate()
         {
             throw new NotImplementedException();
 		    //if len(str(self.fields["Data"]))%2==0:

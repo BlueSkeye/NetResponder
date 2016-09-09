@@ -53,6 +53,7 @@ namespace NetResponder.Servers
 
         private void ParseDatagramNBTNames(IPEndPoint from, byte[] data)
         {
+            NetBIOSUdpHeader netBIOSHeader = NetBIOSUdpHeader.FromRequest(data);
             // TODO : Check name encoding and assert the ExtractString is inline
             // with it.
             string domain = NetBIOSHelpers.DecodeName(
@@ -111,39 +112,35 @@ namespace NetResponder.Servers
 
         private string[] RapFinger(IPEndPoint from, string domain, byte[] type)
         {
+            Socket s = null;
             try {
-                Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                s.Connect(from.Address, 445);
+                s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                try { s.Connect(from.Address, 445); }
+                catch { return null; }
                 s.ReceiveTimeout = s.SendTimeout = 300;
+                byte[] data = new byte[1024];
                 SMBHeader header = new SMBHeader() {
-                    Cmd = new byte[] { 0x72 },
+                    Cmd = new byte[] { (byte)SMBCommands.Negociate },
                     Mid = new byte[] { 0x01, 0x00 } };
                 SMBNegoData body = new SMBNegoData();
-                body.Calculate();
-                byte[] packet = BasePacket.Concatenate(sizeof(int), header, body);
-                packet.Write(0, true, (packet.Length - sizeof(int)));
-                // byte[] buffer = struct.pack(">i", len(''.join(Packet))) + Packet;
+                byte[] packet = body.CalculateAndBuild(header);
                 int sentLength = s.Send(packet);
-                byte[] data = new byte[1024];
                 int receivedCount = s.Receive(data);
 
                 // # Session Setup AndX Request, Anonymous.
-                if (!data.ExtractData(8, 2).ContentEquals(new byte[] { 0x72, 0x00 })) { return null; }
+                if (!SMBHeader.IsExpectedResponse(SMBCommands.Negociate, data)) { return null; }
                 header = new SMBHeader() {
-                    Cmd = new byte[] { 0x73 },
+                    Cmd = new byte[] { (byte)SMBCommands.SessionSetupWithAndXChaining },
                     Mid = new byte[] { 0x02, 0x00 } };
-                SMBSessionData sessionDatabody = new SMBSessionData();
-                body.Calculate();
-                packet = BasePacket.Concatenate(sizeof(int), header, sessionDatabody);
-                packet.Write(0, true, (packet.Length - sizeof(int)));
-                //// Buffer = struct.pack(">i", len(''.join(Packet))) + Packet
+                SMBSessionData sessionDataBody = new SMBSessionData();
+                packet = sessionDataBody.CalculateAndBuild(header);
                 sentLength = s.Send(packet);
                 receivedCount = s.Receive(data);
 
                 //# Tree Connect IPC$.
-                if (!data.ExtractData(8, 2).ContentEquals(new byte[] { 0x73, 0x00 })) { return null; }
+                if (!SMBHeader.IsExpectedResponse(SMBCommands.SessionSetupWithAndXChaining, data)) { return null; }
                 header = new SMBHeader() {
-                    Cmd = new byte[] { 0x75 },
+                    Cmd = new byte[] { (byte)SMBCommands.ConnectTreeWithAndXChaining },
                     Flag1 = new byte[] { 0x08 },
                     Flag2 = new byte[] { 0x01, 0x00 },
                     Uid = data.ExtractData(32, 2),
@@ -151,16 +148,14 @@ namespace NetResponder.Servers
                 SMBTreeConnectData treeConnectBody = new SMBTreeConnectData() {
                     Path = Encoding.ASCII.GetBytes("\\\\" + from.Address.ToString() + "\\IPC$")
                 };
-                treeConnectBody.Calculate();
-                packet = BasePacket.Concatenate(sizeof(int), header, treeConnectBody);
-                packet.Write(0, true, (packet.Length - sizeof(int)));
+                packet = treeConnectBody.CalculateAndBuild(header);
                 sentLength = s.Send(packet);
                 receivedCount = s.Receive(data);
 
                 // # Rap ServerEnum.
-                if (!data.ExtractData(8, 2).ContentEquals(new byte[] { 0x75, 0x00 })) { return null; }
+                if (!SMBHeader.IsExpectedResponse(SMBCommands.ConnectTreeWithAndXChaining, data)) { return null; }
                 header = new SMBHeader() {
-                    Cmd = new byte[] { 0x25 },
+                    Cmd = new byte[] { (byte)SMBCommands.Transaction },
                     Flag1 = new byte[] { 0x08 },
                     Flag2 = new byte[] { 0x01, 0xc8 },
                     Uid = data.ExtractData(32, 2),
@@ -173,21 +168,20 @@ namespace NetResponder.Servers
                         DetailLevel = new byte[] { 0x01, 0x00 },
                         TargetDomain = Encoding.ASCII.GetBytes(domain)
                     }.RawData };
-                transRAPBody.Calculate();
-                packet = BasePacket.Concatenate(sizeof(int), header, transRAPBody);
-                packet.Write(0, true, (packet.Length - sizeof(int)));
+                packet = transRAPBody.CalculateAndBuild(header);
                 sentLength = s.Send(packet);
                 data = new byte[64736];
                 receivedCount = s.Receive(data);
 
                 // # Rap ServerEnum, Get answer and return what we're looking for.
-                if (data.ExtractData(8, 2).ContentEquals(new byte[] { 0x25, 0x00 })) {
-                    s.Close();
-                }
+                if (!SMBHeader.IsExpectedResponse(SMBCommands.Transaction, data)) { return null; }
                 return ParsePacket(data);
             }
             catch {
                 return null;
+            }
+            finally {
+                if (null != s) { s.Close(); }
             }
         }
 
